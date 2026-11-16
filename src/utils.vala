@@ -214,6 +214,17 @@ namespace Dosage.Locale {
 		return string.joinv (", ", labels);
 	}
 
+	// Long date for History sections, e.g. "Monday, Nov 16, 2026" / "Monday, 16 Nov 2026"
+	public string date_format () {
+		string? lc = GLib.Intl.setlocale (GLib.LocaleCategory.TIME, null);
+		bool month_first = lc != null && (lc.has_prefix ("en_US") || lc.has_prefix ("en_PH") ||
+		                                  lc.has_prefix ("en_CA") || lc == "C" || lc == "POSIX");
+#if ANDROID
+		month_first = false;
+#endif
+		return month_first ? "%A, %b %-e, %Y" : "%A, %-e %b %Y";
+	}
+
 	public string format_date (int64 ms) {
 		return Time.from_ms (ms).format ("%x");
 	}

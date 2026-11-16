@@ -26,6 +26,7 @@ namespace Dosage {
 		[GtkChild] unowned Gtk.ToggleButton btnWhenNeeded;
 		[GtkChild] unowned Gtk.ToggleButton buttonSearch;
 		[GtkChild] unowned Gtk.SearchBar searchBar;
+		[GtkChild] unowned Gtk.SearchEntry searchEntry;
 
 		private Store store = Store.get_default ();
 		private GLib.Settings settings;
@@ -52,6 +53,7 @@ namespace Dosage {
 			settings.changed["clear-old-hist"].connect (() => {
 				if (settings.get_boolean ("clear-old-hist")) {
 					clear_old_history_entries ();
+					set_show_history_amount ();
 					store.save_history ();
 				}
 			});
@@ -62,7 +64,8 @@ namespace Dosage {
 #endif
 			setup_today_list ();
 			setup_treatments_list ();
-			setup_placeholders ();
+			setup_history_list ();
+			setup_view_stack ();
 			store.load_error.connect (show_error);
 
 			// let the window draw first, then load (JS: setTimeout(load, 100))
@@ -82,6 +85,7 @@ namespace Dosage {
 			update_cycle_and_last_up (false);
 			store.save_treatments ();
 			load_today ();
+			history_changed ();
 			spinnerToday.visible = false;
 			handle_suspension ();
 			schedule_notifications (null);
@@ -94,17 +98,6 @@ namespace Dosage {
 			dialog.present (this);
 		}
 
-		// Phase 1 of the Vala port: Treatments and History pages come next.
-		private void setup_placeholders () {
-			emptyHistory.title = _("History");
-			emptyHistory.description = "Coming in the next update of the Android port.";
-			emptyHistory.visible = true;
-			buttonSearch.sensitive = false;
-			toggleHistAmountBtn.visible = false;
-			removeHistItemsBtn.visible = false;
-			unselectHistItemsBtn.visible = false;
-		}
-
 		private void clock_tick () {
 			int64 last_date = Time.today_ms ();
 			// update everything at next midnight
@@ -114,6 +107,7 @@ namespace Dosage {
 					clear_old_history_entries ();
 					add_missed_items ();
 					update_everything (false, false, false);
+					scroll_history_to (0);
 					schedule_notifications (null);
 					last_date = now;
 				}
@@ -315,12 +309,18 @@ namespace Dosage {
 		}
 
 		public void update_everything (bool is_notif_action, bool skip_cycle_up, bool skip_hist_up) {
+			set_show_history_amount ();
 			update_cycle_and_last_up (skip_cycle_up);
 			store.save_treatments ();
 			load_today ();
 			update_entry_btn (false);
 			check_inventory (is_notif_action);
+			unselect_hist_items ();
 			if (!skip_hist_up) store.save_history ();
+		}
+
+		public void refresh_inventory () {
+			check_inventory (false);
 		}
 
 		// --- Today page -----------------------------------------------------------
@@ -460,6 +460,7 @@ namespace Dosage {
 
 				update_everything (false, true, false);
 				schedule_notifications ("adding");
+				scroll_history_to (0);
 			} else {
 				present_one_time_dialog ();
 			}
@@ -734,20 +735,242 @@ namespace Dosage {
 			present_med_dialog ();
 		}
 
+		// --- History page ---------------------------------------------------------------
+
+		private Gtk.CustomFilter history_filter;
+		private Gtk.FilterListModel history_filtered;
+		private Gtk.MultiSelection hist_select;
+		private GenericArray<HistoryEntry> hist_items_to_rm = new GenericArray<HistoryEntry> ();
+		private bool show_all_hist;
+		private bool hist_query;
+		private bool hist_more_than_7;
+		private bool ctrl_pressed;
+		private string query = "";
+		private GLib.SimpleAction show_search_action;
+
+		private void setup_history_list () {
+			history_filter = new Gtk.CustomFilter (null);
+			history_filtered = new Gtk.FilterListModel (store.history, history_filter);
+			var sorted = new Gtk.SortListModel (history_filtered, null);
+			sorted.section_sorter = new HistorySectionSorter ();
+			hist_select = new Gtk.MultiSelection (sorted);
+
+			historyList.remove_css_class ("view");
+			historyList.add_css_class ("background");
+#if ANDROID
+			historyList.enable_rubberband = false;
+#endif
+			historyList.header_factory = HistoryFactory.header ();
+			historyList.factory = HistoryFactory.items (hist_select);
+			historyList.model = hist_select;
+
+			hist_select.selection_changed.connect (() => {
+				hist_items_to_rm = new GenericArray<HistoryEntry> ();
+				var bits = hist_select.get_selection ();
+				for (uint i = 0; i < hist_select.get_n_items (); i++)
+					if (bits.contains (i)) hist_items_to_rm.add ((HistoryEntry) hist_select.get_item (i));
+				bool none = hist_items_to_rm.length == 0;
+				removeHistItemsBtn.visible = !none;
+				unselectHistItemsBtn.visible = !none;
+				toggleHistAmountBtn.visible = none && hist_more_than_7 && !hist_query;
+			});
+
+			// search
+			buttonSearch.clicked.connect (() => searchBar.search_mode_enabled = !searchBar.search_mode_enabled);
+			searchBar.notify["search-mode-enabled"].connect (() => buttonSearch.active = searchBar.search_mode_enabled);
+			history_filtered.items_changed.connect (() => {
+				bool no_results = history_filtered.get_n_items () == 0;
+				emptyHistory.visible = no_results;
+				emptyHistory.title = hist_query && no_results ? _("No Results Found") : _("No History");
+			});
+			searchEntry.search_changed.connect (on_search_changed);
+
+			show_search_action = new GLib.SimpleAction ("showSearch", null);
+			show_search_action.activate.connect (() => {
+				if (viewStack.visible_child_name != "history-page") return;
+				searchBar.search_mode_enabled = true;
+				searchEntry.grab_focus ();
+			});
+
+			store.history.items_changed.connect (() => {
+				hist_more_than_7 = history_has_more_than_7_days ();
+				update_history_empty ();
+			});
+
+#if !ANDROID
+			// ctrl + click selects items to remove
+			var keys = new Gtk.EventControllerKey ();
+			keys.key_pressed.connect ((keyval, keycode, state) => {
+				if (keyval == Gdk.Key.Control_L || keyval == Gdk.Key.Control_R) ctrl_pressed = true;
+				return false;
+			});
+			keys.key_released.connect ((keyval, keycode, state) => {
+				if (keyval == Gdk.Key.Control_L || keyval == Gdk.Key.Control_R) ctrl_pressed = false;
+			});
+			historyList.add_controller (keys);
+#endif
+		}
+
+		private void update_history_empty () {
+			var app = (Gtk.Application) application;
+			if (store.history.get_n_items () == 0) {
+				searchBar.search_mode_enabled = false;
+				emptyHistory.title = _("No History");
+				emptyHistory.visible = true;
+				buttonSearch.sensitive = false;
+				app?.remove_action ("showSearch");
+			} else {
+				buttonSearch.sensitive = true;
+				buttonSearch.visible = viewStack.visible_child_name == "history-page";
+				if (app != null) {
+					app.add_action (show_search_action);
+					app.set_accels_for_action ("app.showSearch", { "<primary>f" });
+				}
+			}
+		}
+
+		// called after loading or editing history
+		public void history_changed () {
+			hist_more_than_7 = history_has_more_than_7_days ();
+			set_show_history_amount ();
+			update_history_empty ();
+		}
+
+		private void setup_view_stack () {
+			viewStack.notify["visible-child"].connect (() => {
+				string page = viewStack.visible_child_name;
+				btnWhenNeeded.visible = page == "today-page" && has_when_needed;
+				buttonSearch.visible = page == "history-page";
+				searchBar.visible = page == "history-page";
+				buttonTreatmentsSorter.visible = page == "treatments-page";
+				Haptics.tick ();
+			});
+		}
+
+		private static string remove_diacritics (string s) {
+			var sb = new StringBuilder ();
+			string nfd = s.down ().normalize (-1, GLib.NormalizeMode.NFD);
+			unichar c;
+			int i = 0;
+			while (nfd.get_next_char (ref i, out c))
+				if (c.type () != GLib.UnicodeType.NON_SPACING_MARK) sb.append_unichar (c);
+			return sb.str;
+		}
+
+		private void on_search_changed () {
+			query = remove_diacritics (searchEntry.text.strip ());
+			if (query == "") {
+				hist_query = false;
+				show_all_hist = false;
+				set_show_history_amount ();
+				emptyHistory.visible = false;
+				scroll_history_to (0);
+				return;
+			}
+			hist_query = true;
+			toggleHistAmountBtn.visible = false;
+			string q = query;
+			history_filter.set_filter_func ((obj) => remove_diacritics (((HistoryEntry) obj).name).contains (q));
+		}
+
+		private bool history_has_more_than_7_days () {
+			var days = new GenericSet<string> (str_hash, str_equal);
+			for (uint i = 0; i < store.history.get_n_items (); i++) {
+				days.add (Time.day_ms (((HistoryEntry) store.history.get_item (i)).taken_at).to_string ());
+				if (days.length > 7) return true;
+			}
+			return false;
+		}
+
+		// Show only the last 7 days unless "Show All"
+		private void set_show_history_amount () {
+			if (hist_query) return;
+			unselect_hist_items ();
+			toggleHistAmountBtn.visible = hist_more_than_7;
+			toggleHistAmountBtn.label = _("Show All");
+
+			if (hist_more_than_7) historyList.remove_css_class ("list-no-extra-padding-bottom");
+			else historyList.add_css_class ("list-no-extra-padding-bottom");
+
+			if (!show_all_hist && hist_more_than_7) {
+				// the 7 most recent days
+				var days = new GenericArray<int64?> ();
+				for (uint i = 0; i < store.history.get_n_items () && days.length < 7; i++) {
+					int64 d = Time.day_ms (((HistoryEntry) store.history.get_item (i)).taken_at);
+					bool known = false;
+					foreach (var x in days) if (x == d) known = true;
+					if (!known) days.add (d);
+				}
+				int64 oldest = days[days.length - 1];
+				history_filter.set_filter_func ((obj) => Time.day_ms (((HistoryEntry) obj).taken_at) >= oldest);
+			} else if (show_all_hist) {
+				toggleHistAmountBtn.label = _("Show Less");
+				history_filter.set_filter_func (null);
+			} else {
+				toggleHistAmountBtn.visible = false;
+				history_filter.set_filter_func (null);
+			}
+		}
+
+		public void scroll_history_to (uint pos) {
+			Timeout.add (100, () => {
+				if (hist_select.get_n_items () > 0)
+					historyList.scroll_to (uint.min (pos, hist_select.get_n_items () - 1), Gtk.ListScrollFlags.NONE, null);
+				return Source.REMOVE;
+			});
+		}
+
 		[GtkCallback (name = "_editHistoryItem")]
 		private void on_edit_history_item (Gtk.ListView list, uint position) {
+			if (ctrl_pressed) {
+				if (hist_select.is_selected (position)) hist_select.unselect_item (position);
+				else hist_select.select_item (position, false);
+				return;
+			}
+			if (delay_dialog) return;
+			delay_dialog = true;
+			Timeout.add (500, () => { delay_dialog = false; return Source.REMOVE; });
+			new EditHistDialog (this, (HistoryEntry) hist_select.get_item (position)).present (this);
 		}
 
 		[GtkCallback (name = "toggleHistoryAmount")]
 		private void on_toggle_history_amount () {
+			show_all_hist = !show_all_hist;
+			set_show_history_amount ();
 		}
 
 		[GtkCallback (name = "unselectHistItems")]
-		private void on_unselect_hist_items () {
+		private void unselect_hist_items () {
+			hist_select?.unselect_all ();
+			hist_items_to_rm = new GenericArray<HistoryEntry> ();
+			removeHistItemsBtn.visible = false;
+			unselectHistItemsBtn.visible = false;
+			toggleHistAmountBtn.visible = hist_more_than_7 && !hist_query;
 		}
 
+		// Removing today's entries makes those doses due again and restores stock.
 		[GtkCallback (name = "removeHistItems")]
 		private void on_remove_hist_items () {
+			Haptics.click ();
+			int64 today = Time.today_ms ();
+			foreach (var e in hist_items_to_rm) {
+				if (Time.day_ms (e.taken_at) == today) {
+					for (uint i = 0; i < store.treatments.get_n_items (); i++) {
+						var t = (Treatment) store.treatments.get_item (i);
+						if (t.name != e.name) continue;
+						foreach (var td in t.dosage)
+							if (td.hour == e.hour && td.minute == e.minute) td.last_taken = null;
+						if (t.inv_enabled && (e.taken_state == 1 || e.taken_state == 2)) t.inv_current += e.dose;
+						t.changed ();
+						break;
+					}
+				}
+				uint pos;
+				if (store.history.find (e, out pos)) store.history.remove (pos);
+			}
+			unselect_hist_items ();
+			update_everything (false, true, false);
+			schedule_notifications ("removing");
 		}
 
 		public void show_page (string name) {

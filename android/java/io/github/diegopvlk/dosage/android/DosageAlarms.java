@@ -16,6 +16,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -67,6 +69,16 @@ public final class DosageAlarms {
 
 	public static boolean canScheduleExact(Context context) {
 		return context.getSystemService(AlarmManager.class).canScheduleExactAlarms();
+	}
+
+	/** Haptic feedback: 0 = tick (selection), 1 = click (action), 2 = heavy click. */
+	public static void haptic(Context context, int kind) {
+		Vibrator v = context.getSystemService(Vibrator.class);
+		if (v == null || !v.hasVibrator()) return;
+		int effect = kind == 0 ? VibrationEffect.EFFECT_TICK
+				: kind == 2 ? VibrationEffect.EFFECT_HEAVY_CLICK
+				: VibrationEffect.EFFECT_CLICK;
+		v.vibrate(VibrationEffect.createPredefined(effect));
 	}
 
 	/** True if the app is exempt from battery optimisation ("Unrestricted"). */

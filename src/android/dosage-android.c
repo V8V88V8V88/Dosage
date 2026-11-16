@@ -226,3 +226,69 @@ dosage_android_request_battery_unrestricted (void)
   (*env)->CallStaticVoidMethod (env, alarms_class, m, app_context);
   check_exception (env, "requestBatteryUnrestricted");
 }
+
+static jobject
+current_application (JNIEnv *env)
+{
+  jclass at = (*env)->FindClass (env, "android/app/ActivityThread");
+  jmethodID current_app = (*env)->GetStaticMethodID (env, at, "currentApplication",
+                                                     "()Landroid/app/Application;");
+  jobject app = (*env)->CallStaticObjectMethod (env, at, current_app);
+  (*env)->DeleteLocalRef (env, at);
+  if (check_exception (env, "currentApplication"))
+    return NULL;
+  return app;
+}
+
+gboolean
+dosage_android_is_24_hour (void)
+{
+  /* The user's 12/24-hour clock setting (Settings > System > Date & time). */
+  JNIEnv *env = get_env ();
+  if (env == NULL)
+    return TRUE;
+  jobject app = current_application (env);
+  if (app == NULL)
+    return TRUE;
+  jclass df = (*env)->FindClass (env, "android/text/format/DateFormat");
+  jmethodID m = (*env)->GetStaticMethodID (env, df, "is24HourFormat",
+                                           "(Landroid/content/Context;)Z");
+  jboolean r = (*env)->CallStaticBooleanMethod (env, df, m, app);
+  (*env)->DeleteLocalRef (env, df);
+  (*env)->DeleteLocalRef (env, app);
+  if (check_exception (env, "is24HourFormat"))
+    return TRUE;
+  return r;
+}
+
+gint
+dosage_android_first_day_of_week (void)
+{
+  /* 0 = Sunday ... 6 = Saturday (java.util.Calendar uses 1 = Sunday). */
+  JNIEnv *env = get_env ();
+  if (env == NULL)
+    return 0;
+  jclass cal = (*env)->FindClass (env, "java/util/Calendar");
+  jmethodID get_instance = (*env)->GetStaticMethodID (env, cal, "getInstance",
+                                                      "()Ljava/util/Calendar;");
+  jmethodID first = (*env)->GetMethodID (env, cal, "getFirstDayOfWeek", "()I");
+  jobject c = (*env)->CallStaticObjectMethod (env, cal, get_instance);
+  jint d = (*env)->CallIntMethod (env, c, first);
+  (*env)->DeleteLocalRef (env, c);
+  (*env)->DeleteLocalRef (env, cal);
+  if (check_exception (env, "getFirstDayOfWeek"))
+    return 0;
+  return (d - 1) % 7;
+}
+
+void
+dosage_android_haptic (gint kind)
+{
+  JNIEnv *env = get_env ();
+  if (env == NULL || alarms_class == NULL)
+    return;
+  jmethodID m = (*env)->GetStaticMethodID (env, alarms_class, "haptic",
+                                           "(Landroid/content/Context;I)V");
+  (*env)->CallStaticVoidMethod (env, alarms_class, m, app_context, (jint) kind);
+  check_exception (env, "haptic");
+}

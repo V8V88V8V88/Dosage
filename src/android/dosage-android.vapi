@@ -10,4 +10,7 @@ namespace DosageAndroid {
 	public string? get_cache_dir ();
 	public bool is_battery_unrestricted ();
 	public void request_battery_unrestricted ();
+	public bool is_24_hour ();
+	public int first_day_of_week ();
+	public void haptic (int kind);
 }

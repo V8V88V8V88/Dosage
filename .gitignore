@@ -5,3 +5,8 @@ builddir
 .flatpak
 .flatpak-builder
 .vscode
+# Android (Pixiewood)
+/.pixiewood/
+/.buildconfig
+/subprojects/*
+!/subprojects/json-glib.wrap

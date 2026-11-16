@@ -32,6 +32,7 @@ permissions = [
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.SCHEDULE_EXACT_ALARM",
     "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+    "android.permission.VIBRATE",
 ]
 for p in permissions:
     tag = '<uses-permission android:name="%s"/>' % p

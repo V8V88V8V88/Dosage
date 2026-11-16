@@ -22,12 +22,11 @@ blueprints = custom_target(
 	],
 )
 
+# Compiled into the binary (simpler for Android than an installed bundle).
 data_res = gnome.compile_resources(
-	'io.github.diegopvlk.Dosage.data',
+	'dosage-resources',
 	'io.github.diegopvlk.Dosage.data.gresource.xml',
-	gresource_bundle: true,
-	install: true,
-	install_dir: pkgdatadir,
+	c_name: 'dosage',
 	dependencies: blueprints,
 )
 
@@ -62,9 +61,28 @@ if appstreamcli.found()
 	)
 endif
 
+# Pixiewood reads the metainfo with the metainfo XML namespace; add it for Android.
+if is_android
+	custom_target(
+		'android-metainfo',
+		input: appstream_file,
+		output: 'io.github.diegopvlk.Dosage.android.metainfo.xml',
+		command: [
+			find_program('sed'),
+			'-e', 's|<component type="desktop">|<component type="desktop-application" xmlns="https://specifications.freedesktop.org/metainfo/1.0">|',
+			# the Android package name comes from <id>; drop the legacy ".desktop" suffix
+			'-e', 's|<id>io.github.diegopvlk.Dosage.desktop</id>|<id>io.github.diegopvlk.Dosage</id>|',
+			'@INPUT@',
+		],
+		capture: true,
+		build_by_default: true,
+	)
+endif
+
 install_data(
 	'io.github.diegopvlk.Dosage.gschema.xml',
 	install_dir: join_paths(get_option('datadir'), 'glib-2.0/schemas'),
+	install_tag: 'runtime', # Pixiewood only bundles runtime-tagged files
 )
 
 compile_schemas = find_program('glib-compile-schemas', required: false)
@@ -77,3 +95,12 @@ if compile_schemas.found()
 endif
 
 subdir('icons')
+
+if is_android
+	# GNOME's UI font; Android only ships Roboto. (SIL Open Font License)
+	adwaita_sans = files(
+		'/usr/share/fonts/adwaita-sans-fonts/AdwaitaSans-Regular.ttf',
+		'/usr/share/fonts/adwaita-sans-fonts/AdwaitaSans-Italic.ttf',
+	)
+	install_data(adwaita_sans, install_dir: get_option('datadir') / 'fonts', install_tag: 'runtime')
+endif

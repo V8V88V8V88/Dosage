@@ -17,3 +17,8 @@ char    *dosage_android_get_cache_dir      (void);
 /* Battery optimisation exemption ("Unrestricted"); OEMs like ColorOS freeze apps otherwise. */
 gboolean dosage_android_is_battery_unrestricted     (void);
 void     dosage_android_request_battery_unrestricted (void);
+/* Locale info GLib can't provide on Android. */
+gboolean dosage_android_is_24_hour         (void);
+gint     dosage_android_first_day_of_week  (void);
+/* Haptic feedback: 0 = tick (selection), 1 = click (action), 2 = heavy click. */
+void     dosage_android_haptic             (gint kind);

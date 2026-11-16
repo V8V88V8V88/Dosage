@@ -107,6 +107,8 @@ namespace Dosage {
 			});
 			((Gtk.Widget) this).add_controller (keys);
 
+			Touch.fix_rows (this);
+
 			int h, nat;
 			medDialogClamp.measure (Gtk.Orientation.VERTICAL, -1, out h, out nat, null, null);
 			content_height = h + 48;

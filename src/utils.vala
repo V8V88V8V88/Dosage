@@ -235,6 +235,23 @@ namespace Dosage.Locale {
 	}
 }
 
+namespace Dosage.Touch {
+	// On Android a tap on a button inside an Adw.ActionRow also activates the row. If
+	// the row's activatable widget is that same popover button, the popover opens and
+	// immediately closes (toggled twice); for spin rows, activation moves focus away
+	// and closes it. Let the buttons handle taps alone (desktop is unaffected).
+	public void fix_rows (Gtk.Widget root) {
+#if ANDROID
+		for (var child = root.get_first_child (); child != null; child = child.get_next_sibling ()) {
+			var row = child as Adw.ActionRow;
+			if (row != null && row.activatable_widget is Gtk.MenuButton) row.activatable_widget = null;
+			if (child is Adw.SpinRow) ((Adw.SpinRow) child).activatable = false;
+			fix_rows (child);
+		}
+#endif
+	}
+}
+
 namespace Dosage.Haptics {
 	// Android: vibrate for every interaction with stock GTK/libadwaita widgets, so all
 	// buttons, switches, checks, rows and lists feel the same (signal emission hooks).
@@ -246,7 +263,6 @@ namespace Dosage.Haptics {
 		hook (typeof (Adw.ButtonRow), "activated", 1);
 		hook (typeof (Adw.ActionRow), "activated", 0);   // combo/expander rows, etc.
 		hook (typeof (Gtk.ListView), "activate", 0);
-		hook (typeof (Gtk.SpinButton), "value-changed", 0);
 #endif
 	}
 

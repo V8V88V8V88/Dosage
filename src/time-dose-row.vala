@@ -105,6 +105,10 @@ namespace Dosage {
 		public TimeDoseRow (int hour, int minute, double dose, bool removable) {
 			row = new Adw.SpinRow (new Gtk.Adjustment (dose, 0.25, 9999, 0.25, 1, 0), 0.2, 2);
 			row.add_css_class ("t-d-row");
+#if ANDROID
+			// see Touch.fix_rows: activation would close the time popover
+			row.activatable = false;
+#endif
 			row.set_data<TimeDoseRow> ("time-dose-row", this);
 
 			picker = new TimePicker (hour, minute);

@@ -44,6 +44,7 @@ namespace Dosage {
 			refillRow.value = t.inv_current;
 			refillButton.label = "+" + format_number (t.inv_refill);
 			add_save_shortcut (this, saveButton);
+			Touch.fix_rows (this);
 			content_height = natural_height (refillDialogClamp) + 50;
 		}
 
@@ -129,6 +130,7 @@ namespace Dosage {
 			medUnit.changed.connect (() => { medUnit.remove_css_class ("error"); update_confirm (); toast.dismiss (); });
 
 			setup_treatments_list ();
+			Touch.fix_rows (this);
 			content_height = natural_height (oneTimeDialogClamp) + 58;
 		}
 

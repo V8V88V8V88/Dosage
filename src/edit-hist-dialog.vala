@@ -82,6 +82,8 @@ namespace Dosage {
 			});
 			((Gtk.Widget) this).add_controller (keys);
 
+			Touch.fix_rows (this);
+
 			int min_h, nat;
 			editHistDialogClamp.measure (Gtk.Orientation.VERTICAL, -1, out min_h, out nat, null, null);
 			content_height = min_h + 48;

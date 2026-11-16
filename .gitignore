@@ -10,3 +10,4 @@ builddir
 /.buildconfig
 /subprojects/*
 !/subprojects/json-glib.wrap
+/android-spike/

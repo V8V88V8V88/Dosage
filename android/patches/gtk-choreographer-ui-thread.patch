@@ -1,0 +1,66 @@
+diff --git a/gdk/android/gdkandroidchoreographersource-private.h b/gdk/android/gdkandroidchoreographersource-private.h
+index 850cf67..8211cc7 100644
+--- a/gdk/android/gdkandroidchoreographersource-private.h
++++ b/gdk/android/gdkandroidchoreographersource-private.h
+@@ -41,6 +41,8 @@ typedef struct _GdkAndroidChoreographerSource GdkAndroidChoreographerSource;
+  * Returns: (transfer full): a floating #GSource reference.
+  */
+ GSource *gdk_android_choreographer_source_new     (GMainContext *context);
++/* Must be called on the Android UI (main looper) thread before the GTK thread starts. */
++void     gdk_android_choreographer_source_init_ui_thread (void);
+ 
+ void     gdk_android_choreographer_source_pause   (GdkAndroidChoreographerSource *source);
+ void     gdk_android_choreographer_source_unpause (GdkAndroidChoreographerSource *source);
+diff --git a/gdk/android/gdkandroidchoreographersource.c b/gdk/android/gdkandroidchoreographersource.c
+index 5b3c164..bfc6c70 100644
+--- a/gdk/android/gdkandroidchoreographersource.c
++++ b/gdk/android/gdkandroidchoreographersource.c
+@@ -80,6 +80,17 @@ gdk_android_choreographer_source_on_frame (int64_t frame_time_nanos,
+                                       self);
+ }
+ 
++/* AChoreographer_getInstance() only works on a thread with an ALooper. The GTK
++ * thread has none, so fetch the UI thread's instance when the runtime starts;
++ * frame callbacks are delivered on the UI thread, as on_frame expects. */
++static AChoreographer *ui_choreographer = NULL;
++
++void
++gdk_android_choreographer_source_init_ui_thread (void)
++{
++  ui_choreographer = AChoreographer_getInstance ();
++}
++
+ static gboolean
+ gdk_android_choreographer_source_prepare (GSource *source,
+                                           int     *timeout_out)
+@@ -144,7 +155,7 @@ gdk_android_choreographer_source_new (GMainContext *context)
+   self->context = context;
+   g_atomic_int_set (&self->paused, TRUE);
+ 
+-  self->choreographer = AChoreographer_getInstance ();
++  self->choreographer = ui_choreographer ? ui_choreographer : AChoreographer_getInstance ();
+   if (self->choreographer == NULL)
+     {
+       g_warning ("GdkAndroidChoreographerSource: AChoreographer_getInstance() failed");
+diff --git a/gdk/android/gdkandroidruntime.c b/gdk/android/gdkandroidruntime.c
+index 39d3a64..c324dc5 100644
+--- a/gdk/android/gdkandroidruntime.c
++++ b/gdk/android/gdkandroidruntime.c
+@@ -23,6 +23,7 @@
+ #include <gdk/android/gdkandroid.h>
+ #include <gdk/android/gdkandroidinit-private.h>
+ #include <gdk/android/gdkandroidutils-private.h>
++#include "gdkandroidchoreographersource-private.h"
+ 
+ #include <android/log.h>
+ #include <android/looper.h>
+@@ -243,6 +244,9 @@ _gdk_android_application_start_runtime (JNIEnv  *env,
+   if (gtk_thread_s)
+     return;
+ 
++  /* on the UI thread here: grab its Choreographer for vsync (see choreographersource) */
++  gdk_android_choreographer_source_init_ui_thread ();
++
+   __android_log_print (ANDROID_LOG_DEBUG,
+                        "GTK Runtime",
+                        "Starting GTK Android runtime");

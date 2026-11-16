@@ -74,6 +74,7 @@ namespace Dosage {
 				return Source.REMOVE;
 			});
 			clock_tick ();
+			map.connect (() => debug ("renderer: %s", get_renderer ()?.get_type ().name () ?? "none"));
 		}
 
 		// --- startup -------------------------------------------------------------

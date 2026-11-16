@@ -61,6 +61,7 @@ namespace Dosage {
 			height_request = 294;
 #endif
 			setup_today_list ();
+			setup_treatments_list ();
 			setup_placeholders ();
 			store.load_error.connect (show_error);
 
@@ -95,9 +96,6 @@ namespace Dosage {
 
 		// Phase 1 of the Vala port: Treatments and History pages come next.
 		private void setup_placeholders () {
-			emptyTreatments.title = _("Treatments");
-			emptyTreatments.description = "Coming in the next update of the Android port.";
-			emptyTreatments.visible = true;
 			emptyHistory.title = _("History");
 			emptyHistory.description = "Coming in the next update of the Android port.";
 			emptyHistory.visible = true;
@@ -316,7 +314,7 @@ namespace Dosage {
 #endif
 		}
 
-		private void update_everything (bool is_notif_action, bool skip_cycle_up, bool skip_hist_up) {
+		public void update_everything (bool is_notif_action, bool skip_cycle_up, bool skip_hist_up) {
 			update_cycle_and_last_up (skip_cycle_up);
 			store.save_treatments ();
 			load_today ();
@@ -382,6 +380,7 @@ namespace Dosage {
 			bool no_items = today_select.get_n_items () == 0;
 			bool no_treatments = store.treatments.get_n_items () == 0;
 			buttonTreatmentsSorter.sensitive = !no_treatments;
+			emptyTreatments.visible = no_treatments;
 			emptyToday.visible = no_items;
 			emptyToday.icon_name = no_treatments ? "pill-symbolic" : "all-done-symbolic";
 			emptyToday.title = no_treatments ? _("No Treatments") : _("All Done for Today");
@@ -650,13 +649,84 @@ namespace Dosage {
 			dialog.present (this);
 		}
 
-		public void present_med_dialog () {
-			coming_soon (_("New Treatment"));
+		// --- Treatments page ---------------------------------------------------------
+
+		private void setup_treatments_list () {
+			treatmentsList.factory = TreatmentsFactory.create (this);
+			treatmentsList.remove_css_class ("view");
+			treatmentsList.add_css_class ("background");
+			treatmentsList.model = new Gtk.NoSelection (store.treatments);
+
+#if !ANDROID
+			// press a letter to jump to the first treatment starting with it
+			var keys = new Gtk.EventControllerKey ();
+			keys.key_pressed.connect ((keyval, keycode, state) => {
+				if (viewStack.visible_child_name != "treatments-page") return false;
+				unichar c = Gdk.keyval_to_unicode (keyval);
+				if (c == 0) return false;
+				string letter = c.to_string ().down ();
+				for (uint i = 0; i < store.treatments.get_n_items (); i++) {
+					if (((Treatment) store.treatments.get_item (i)).name.down ().has_prefix (letter)) {
+						treatmentsList.scroll_to (i, Gtk.ListScrollFlags.FOCUS, null);
+						return true;
+					}
+				}
+				return false;
+			});
+			((Gtk.Widget) this).add_controller (keys);
+#endif
+		}
+
+		public void sort_treatments (string sorting) {
+			store.treatments.sort ((a, b) => compare_treatments ((Treatment) a, (Treatment) b, sorting));
+			scroll_treatments_to (0);
+		}
+
+		public void scroll_treatments_to (uint pos) {
+			if (store.treatments.get_n_items () > 0)
+				treatmentsList.scroll_to (uint.min (pos, store.treatments.get_n_items () - 1),
+				                          Gtk.ListScrollFlags.FOCUS, null);
+		}
+
+		// position < 0: new treatment
+		public void present_med_dialog (int position = -1, bool duplicate = false) {
+			// avoid opening multiple dialogs on double click
+			if (delay_dialog) return;
+			delay_dialog = true;
+			Timeout.add (500, () => { delay_dialog = false; return Source.REMOVE; });
+
+			Treatment? source = position >= 0 ? (Treatment) store.treatments.get_item (position) : null;
+			new MedDialog (this, source, duplicate).present (this);
+		}
+
+		public void present_refill_dialog (Treatment t) {
+			coming_soon (_("Refill"));
+		}
+
+		public void confirm_delete (Treatment t, uint position, Adw.Dialog? med_dialog) {
+			var dialog = new Adw.AlertDialog (_("Are You Sure?"), null);
+			dialog.body_use_markup = true;
+			// TRANSLATORS: %s is a placeholder for the name of the treatment
+			dialog.body = _("%s will be deleted").replace ("%s", "<b>" + GLib.Markup.escape_text (t.name) + "</b>");
+			dialog.add_response ("cancel", _("Cancel"));
+			dialog.add_response ("delete", _("Delete"));
+			dialog.set_response_appearance ("delete", Adw.ResponseAppearance.DESTRUCTIVE);
+			dialog.response.connect ((response) => {
+				if (response != "delete") return;
+				Haptics.click ();
+				uint pos;
+				if (store.treatments.find (t, out pos)) store.treatments.remove (pos);
+				med_dialog?.force_close ();
+				update_everything (false, true, true);
+				schedule_notifications ("deleting");
+				scroll_treatments_to (pos > 0 ? pos - 1 : 0);
+			});
+			dialog.present (med_dialog != null ? (Gtk.Widget) med_dialog : this);
 		}
 
 		[GtkCallback (name = "_presentMedDialog")]
 		private void on_present_med_dialog (Gtk.ListView list, uint position) {
-			present_med_dialog ();
+			present_med_dialog ((int) position, false);
 		}
 
 		[GtkCallback (name = "_presentMedDialogNew")]

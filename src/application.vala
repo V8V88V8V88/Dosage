@@ -35,6 +35,7 @@ namespace Dosage {
 			sorter.activate.connect ((action, param) => {
 				action.set_state (param);
 				settings.set_string ("treatments-sorting", param.get_string ());
+				window?.sort_treatments (param.get_string ());
 			});
 			add_action (sorter);
 

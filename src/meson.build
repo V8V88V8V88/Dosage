@@ -7,6 +7,9 @@ config_h = configure_file(output: 'config.h', configuration: conf)
 
 sources = files(
 	'application.vala',
+	'med-dialog.vala',
+	'time-dose-row.vala',
+	'treatments-factory.vala',
 	'models.vala',
 	'reminders.vala',
 	'store.vala',

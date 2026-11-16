@@ -156,6 +156,68 @@ namespace Dosage.Locale {
 		return _first_work_day;
 	}
 
+	public bool clock_is_12 () {
+		return time_format ().has_prefix ("%-I");
+	}
+
+	public bool time_dot () {
+		return "." in time_format ();
+	}
+
+	// AM/PM labels for the time picker
+	public string[] am_pm () {
+		var am = new GLib.DateTime (Time.local_tz (), 2000, 1, 1, 9, 0, 0).format ("%p");
+		var pm = new GLib.DateTime (Time.local_tz (), 2000, 1, 1, 21, 0, 0).format ("%p");
+		if (am == "" || pm == "") return { "AM", "PM" };
+		return { am, pm };
+	}
+
+	// getDayLabel: day 0 = Sunday
+	public string day_label (int day, bool long_name = false) {
+		var now = Time.now ();
+		var date = now.add_days ((day - Time.weekday (now) + 7) % 7);
+		string label = date.format (long_name ? "%A" : "%a");
+		if (label.length == 0) return label;
+		unichar first = label.get_char (0);
+		return first.toupper ().to_string () + label.substring (label.index_of_nth_char (1));
+	}
+
+	// getSpecificDaysLabel
+	public string specific_days_label (int[] days) {
+		int[] workdays = {};
+		for (int i = 0; i < 5; i++) workdays += (first_work_day () + i) % 7;
+		int[] weekends = {};
+		foreach (int d in new int[] { 0, 6 }) {
+			bool is_work = false;
+			foreach (int w in workdays) if (w == d) is_work = true;
+			if (!is_work) weekends += d;
+		}
+		bool all_weekend = true, all_work = true;
+		foreach (int d in days) {
+			bool in_we = false, in_wd = false;
+			foreach (int w in weekends) if (w == d) in_we = true;
+			foreach (int w in workdays) if (w == d) in_wd = true;
+			if (!in_we) all_weekend = false;
+			if (!in_wd) all_work = false;
+		}
+
+		if (days.length == 1) return day_label (days[0], true);
+		if (all_weekend && days.length == 2) return _("Weekends");
+		if (all_work && days.length == 5) return _("Weekdays");
+		if (days.length == 7) return _("Daily");
+
+		string[] labels = {};
+		for (int i = 0; i < 7; i++) {
+			int idx = (first_weekday () + i) % 7;
+			foreach (int d in days) if (d == idx) { labels += day_label (idx); break; }
+		}
+		return string.joinv (", ", labels);
+	}
+
+	public string format_date (int64 ms) {
+		return Time.from_ms (ms).format ("%x");
+	}
+
 	public string format_time (int hour, int minute) {
 		var dt = new GLib.DateTime (Time.local_tz (), 2000, 1, 1, hour, minute, 0);
 		return dt.format (time_format ());
@@ -188,6 +250,33 @@ namespace Dosage {
 		while (s.has_suffix ("0")) s = s.substring (0, s.length - 1);
 		if (s.has_suffix (".")) s = s.substring (0, s.length - 1);
 		return s;
+	}
+
+	// treatmentsSorter.js: comparison for the "treatments-sorting" setting
+	public int compare_treatments (Treatment a, Treatment b, string sorting) {
+		int64 today = Time.today_ms ();
+		switch (sorting) {
+			case "amount-remaining-less":
+			case "amount-remaining-more":
+				if (a.inv_enabled != b.inv_enabled) return a.inv_enabled ? -1 : 1;
+				if (a.inv_enabled && a.inv_current != b.inv_current) {
+					int r = a.inv_current < b.inv_current ? -1 : 1;
+					return sorting == "amount-remaining-less" ? r : -r;
+				}
+				break;
+			case "when-needed-last":
+				if (a.is_when_needed != b.is_when_needed) return a.is_when_needed ? 1 : -1;
+				break;
+			case "ended-last":
+			case "when-needed-ended-last":
+				bool ended_a = !a.is_when_needed && a.dur_enabled && Time.day_ms (a.dur_end) < today;
+				bool ended_b = !b.is_when_needed && b.dur_enabled && Time.day_ms (b.dur_end) < today;
+				if (ended_a != ended_b) return ended_a ? 1 : -1;
+				if (sorting == "when-needed-ended-last" && a.is_when_needed != b.is_when_needed)
+					return a.is_when_needed ? 1 : -1;
+				break;
+		}
+		return a.name.collate (b.name);
 	}
 
 	// Sections for the Today list: one per time, "as needed" items first.

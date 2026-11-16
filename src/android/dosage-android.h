@@ -8,7 +8,9 @@ gboolean dosage_android_can_schedule_exact (void);
 void     dosage_android_request_permissions (void);
 /* Returns TRUE if scheduled exactly, FALSE if inexact or failed. */
 gboolean dosage_android_schedule           (gint id, gint64 trigger_at_ms,
-                                            const char *title, const char *body);
+                                            const char *title, const char *body,
+                                            gint64 date_key, const char *confirm_label,
+                                            const char *skip_label);
 void     dosage_android_cancel             (gint id);
 /* Device UTC offset in seconds at the given instant (GLib alone would use UTC). */
 gint     dosage_android_utc_offset_seconds (gint64 at_ms);
@@ -24,3 +26,5 @@ gint     dosage_android_first_day_of_week  (void);
 void     dosage_android_haptic             (gint kind);
 /* Device language as a POSIX locale (e.g. "pt_BR"), newly allocated. */
 char    *dosage_android_get_locale         (void);
+void     dosage_android_notify_now         (gint id, const char *title, const char *body);
+void     dosage_android_withdraw           (gint id);

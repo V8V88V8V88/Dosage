@@ -4,7 +4,10 @@ namespace DosageAndroid {
 	public bool can_notify ();
 	public bool can_schedule_exact ();
 	public void request_permissions ();
-	public bool schedule (int id, int64 trigger_at_ms, string title, string body);
+	public bool schedule (int id, int64 trigger_at_ms, string title, string body,
+	                      int64 date_key, string confirm_label, string skip_label);
+	public void notify_now (int id, string title, string body);
+	public void withdraw (int id);
 	public void cancel (int id);
 	public int utc_offset_seconds (int64 at_ms);
 	public string? get_cache_dir ();

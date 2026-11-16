@@ -33,16 +33,27 @@ permissions = [
     "android.permission.SCHEDULE_EXACT_ALARM",
     "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
     "android.permission.VIBRATE",
+    "android.permission.RECEIVE_BOOT_COMPLETED",
 ]
 for p in permissions:
     tag = '<uses-permission android:name="%s"/>' % p
     if tag not in xml:
         xml = xml.replace("</manifest>", "  %s\n</manifest>" % tag)
 
-receiver = ('<receiver android:name="io.github.diegopvlk.dosage.android.AlarmReceiver" '
-            'android:exported="false"/>')
-if "dosage.android.AlarmReceiver" not in xml:
-    xml = xml.replace("</application>", "    %s\n  </application>" % receiver)
+receivers = [
+    '<receiver android:name="io.github.diegopvlk.dosage.android.AlarmReceiver" android:exported="false"/>',
+    '<receiver android:name="io.github.diegopvlk.dosage.android.ActionReceiver" android:exported="false"/>',
+    '<receiver android:name="io.github.diegopvlk.dosage.android.BootReceiver" android:exported="true">'
+    '<intent-filter>'
+    '<action android:name="android.intent.action.BOOT_COMPLETED"/>'
+    '<action android:name="android.intent.action.QUICKBOOT_POWERON"/>'
+    '<action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>'
+    '</intent-filter></receiver>',
+]
+for r in receivers:
+    name = r.split('android:name="')[1].split('"')[0]
+    if name not in xml:
+        xml = xml.replace("</application>", "    %s\n  </application>" % r)
 
 with open(manifest, "w") as f:
     f.write(xml)

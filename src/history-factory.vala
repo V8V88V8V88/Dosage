@@ -146,7 +146,6 @@ namespace Dosage {
 				row.check_button.toggled.connect (() => {
 					bool want = row.check_button.active;
 					if (want == item.selected) return;
-					Haptics.tick ();
 					if (want) selection.select_item (item.position, false);
 					else selection.unselect_item (item.position);
 				});

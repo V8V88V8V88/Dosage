@@ -91,7 +91,6 @@ namespace Dosage {
 		private void on_taken_status () {
 			saveButton.sensitive = true;
 			takenRow.subtitle = picker.text;
-			Haptics.tick ();
 			if (takenButtons.active_name == "confirmed") {
 				takenRow.title = _("Confirmed At");
 				confirm_activated = true;
@@ -107,7 +106,6 @@ namespace Dosage {
 
 		[GtkCallback (name = "_save")]
 		private void on_save () {
-			Haptics.click ();
 			save ();
 			force_close ();
 		}

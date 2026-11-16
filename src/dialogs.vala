@@ -49,13 +49,11 @@ namespace Dosage {
 
 		[GtkCallback (name = "_refill")]
 		private void on_refill () {
-			Haptics.tick ();
 			refillRow.value += treatment.inv_refill;
 		}
 
 		[GtkCallback (name = "_save")]
 		private void on_save () {
-			Haptics.click ();
 			treatment.inv_current = refillRow.value;
 			treatment.changed ();
 			string sorting = new GLib.Settings (Config.APP_ID).get_string ("treatments-sorting");
@@ -120,7 +118,6 @@ namespace Dosage {
 
 			confirmBtn.clicked.connect (() => {
 				if (!is_valid_input ()) return;
-				Haptics.click ();
 				add_to_history ();
 				window.update_everything (false, true, false);
 				window.history_changed ();
@@ -278,12 +275,13 @@ namespace Dosage {
 			autoStart.notify["active"].connect (on_autostart);
 
 #if ANDROID
-			// Android: reminders are system alarms, so there is no background app to start;
-			// sound, notification buttons and low-stock alerts aren't wired up there yet.
+			// Android: reminders are system alarms, so there's no background app to
+			// autostart; sound is set per notification channel in Android's settings.
 			autoStart.visible = false;
 			notifSound.visible = false;
-			lowNotif.visible = false;
-			confirmBtn.get_parent ()?.get_ancestor (typeof (Adw.ExpanderRow))?.set_visible (false);
+			// reschedule so Confirm/Skip button changes apply to pending reminders
+			confirmBtn.notify["active"].connect (() => window.schedule_notifications ("saving"));
+			skipBtn.notify["active"].connect (() => window.schedule_notifications ("saving"));
 #endif
 
 			exportHistFmt.selected = settings.get_int ("export-history-format");

@@ -15,23 +15,42 @@ public final class AlarmReceiver extends BroadcastReceiver {
 		int id = intent.getIntExtra(DosageAlarms.EXTRA_ID, 0);
 		String title = intent.getStringExtra(DosageAlarms.EXTRA_TITLE);
 		String body = intent.getStringExtra(DosageAlarms.EXTRA_BODY);
+		long dateKey = intent.getLongExtra(DosageAlarms.EXTRA_DATE_KEY, 0);
+		String confirm = intent.getStringExtra(DosageAlarms.EXTRA_CONFIRM);
+		String skip = intent.getStringExtra(DosageAlarms.EXTRA_SKIP);
 		Log.i(DosageAlarms.TAG, "alarm fired id=" + id);
 
-		DosageAlarms.ensureChannel(context);
+		DosageAlarms.ensureChannels(context);
+		DosageAlarms.prefs(context).edit().remove(String.valueOf(id)).apply();
 
-		Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-		PendingIntent open = launch == null ? null : PendingIntent.getActivity(
-				context, id, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+		// one notification per dose group, so repeats replace instead of stacking
+		int notifId = (int) (dateKey / 60000 % 1000000);
 
-		Notification n = new Notification.Builder(context, DosageAlarms.CHANNEL_ID)
+		Notification.Builder b = new Notification.Builder(context, DosageAlarms.CHANNEL_ID)
 				.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
 				.setContentTitle(title != null ? title : "Dosage")
-				.setContentText(body != null ? body : "Time to take your medication")
+				.setContentText(body != null ? body : "")
+				.setStyle(new Notification.BigTextStyle().bigText(body))
 				.setCategory(Notification.CATEGORY_REMINDER)
-				.setContentIntent(open)
-				.setAutoCancel(true)
-				.build();
+				.setContentIntent(DosageAlarms.launchIntent(context, notifId))
+				.setAutoCancel(true);
 
-		context.getSystemService(NotificationManager.class).notify(id, n);
+		if (confirm != null && !confirm.isEmpty())
+			b.addAction(new Notification.Action.Builder(null, confirm,
+					actionIntent(context, notifId, dateKey, 1)).build());
+		if (skip != null && !skip.isEmpty())
+			b.addAction(new Notification.Action.Builder(null, skip,
+					actionIntent(context, notifId, dateKey, 0)).build());
+
+		context.getSystemService(NotificationManager.class).notify(notifId, b.build());
+	}
+
+	private static PendingIntent actionIntent(Context context, int notifId, long dateKey, int taken) {
+		Intent i = new Intent(context, ActionReceiver.class)
+				.putExtra(DosageAlarms.EXTRA_ID, notifId)
+				.putExtra(DosageAlarms.EXTRA_DATE_KEY, dateKey)
+				.putExtra(DosageAlarms.EXTRA_TAKEN, taken);
+		return PendingIntent.getBroadcast(context, notifId * 2 + taken, i,
+				PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 	}
 }

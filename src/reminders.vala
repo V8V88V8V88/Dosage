@@ -140,6 +140,10 @@ namespace Dosage.Reminders {
 			int day_index = Time.days_between (Time.now (), Time.from_ms (g.date_key));
 			int base_id = 10000 + day_index * 1440 + g.hour * 60 + g.minute;
 			string title = title (g), body = body (g);
+			var settings = new GLib.Settings (Config.APP_ID);
+			bool single = g.items.length == 1;
+			string confirm = settings.get_boolean ("confirm-button") ? (single ? _("Confirm") : _("Confirm All")) : "";
+			string skip = settings.get_boolean ("skip-button") ? (single ? _("Skip") : _("Skip All")) : "";
 			int interval = g.recurring_interval ();
 
 			// repeats only for today (Android caps apps at 500 alarms); later days
@@ -149,7 +153,7 @@ namespace Dosage.Reminders {
 				int64 at = g.date_key + (int64) k * interval * 60000;
 				if (at <= now) continue; // past ones are visible on the Today page
 				int id = base_id + k * 100000;
-				DosageAndroid.schedule (id, at, title, body);
+				DosageAndroid.schedule (id, at, title, body, g.date_key, confirm, skip);
 				ids += id;
 			}
 		}

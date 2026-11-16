@@ -236,6 +236,38 @@ namespace Dosage.Locale {
 }
 
 namespace Dosage.Haptics {
+	// Android: vibrate for every interaction with stock GTK/libadwaita widgets, so all
+	// buttons, switches, checks, rows and lists feel the same (signal emission hooks).
+	public void install () {
+#if ANDROID
+		hook (typeof (Gtk.Button), "clicked", 1);       // incl. toggle/menu/view-switcher buttons
+		hook (typeof (Gtk.CheckButton), "toggled", 0);
+		hook (typeof (Gtk.Switch), "state-set", 0);
+		hook (typeof (Adw.ButtonRow), "activated", 1);
+		hook (typeof (Adw.ActionRow), "activated", 0);   // combo/expander rows, etc.
+		hook (typeof (Gtk.ListView), "activate", 0);
+		hook (typeof (Gtk.SpinButton), "value-changed", 0);
+#endif
+	}
+
+#if ANDROID
+	private int64 last_us = 0;
+
+	private void hook (Type type, string signal_name, int kind) {
+		// make sure the class is initialised so the signal exists
+		type.class_ref ();
+		uint id = GLib.Signal.lookup (signal_name, type);
+		if (id == 0) return;
+		GLib.Signal.add_emission_hook (id, 0, (ihint, values) => {
+			// one buzz per interaction (a click can emit several hooked signals)
+			int64 now = GLib.get_monotonic_time ();
+			if (now - last_us > 60000) DosageAndroid.haptic (kind);
+			last_us = now;
+			return true;
+		});
+	}
+#endif
+
 	public void tick () {
 #if ANDROID
 		DosageAndroid.haptic (0);

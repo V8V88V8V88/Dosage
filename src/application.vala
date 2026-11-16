@@ -26,8 +26,16 @@ namespace Dosage {
 			settings = new GLib.Settings (Config.APP_ID);
 #if ANDROID
 			DosageAndroid.init ();
+			Haptics.install ();
 			// Use GNOME's font (bundled in the APK) instead of Android's Roboto.
 			Gtk.Settings.get_default ().gtk_font_name = "Adwaita Sans 11";
+			bool found = false;
+			Pango.FontFamily[] families;
+			Pango.CairoFontMap.get_default ().list_families (out families);
+			foreach (var family in families)
+				if (family.get_name () == "Adwaita Sans") found = true;
+			debug ("Adwaita Sans available: %s", found.to_string ());
+			if (!found) warning ("Adwaita Sans not found by fontconfig; using fallback font");
 #endif
 
 			var sorter = new GLib.SimpleAction.stateful ("treatments-sorter", GLib.VariantType.STRING,
@@ -120,6 +128,20 @@ namespace Dosage {
 }
 
 #if ANDROID
+// GTK extracts fonts.conf to <app>/files/etc/fonts, but fontconfig was built to look in
+// /etc/fonts, which doesn't exist on Android, so it ran without any config (no XDG font
+// dir, no aliases). Point it at the extracted config.
+void use_bundled_fontconfig () {
+	foreach (var dir in GLib.Environment.get_system_config_dirs ()) {
+		var conf = GLib.Path.build_filename (dir, "fonts", "fonts.conf");
+		if (GLib.FileUtils.test (conf, GLib.FileTest.EXISTS)) {
+			GLib.Environment.set_variable ("FONTCONFIG_FILE", conf, true);
+			GLib.Environment.set_variable ("FONTCONFIG_PATH", GLib.Path.get_dirname (conf), true);
+			return;
+		}
+	}
+}
+
 // fontconfig on Android only scans system fonts and XDG_DATA_HOME/fonts, but the APK's
 // files land in XDG_DATA_DIRS. Copy GNOME's font (Adwaita Sans) over once.
 void install_bundled_fonts () {
@@ -160,6 +182,7 @@ public int main (string[] args) {
 		GLib.DirUtils.create_with_parents (GLib.Path.build_filename (config, "glib-2.0", "settings"), 0700);
 		GLib.Environment.set_variable ("XDG_CONFIG_HOME", config, true);
 	}
+	use_bundled_fontconfig ();
 	install_bundled_fonts ();
 #endif
 #if ANDROID

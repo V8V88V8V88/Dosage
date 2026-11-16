@@ -164,7 +164,6 @@ namespace Dosage {
 				var list_header = (Gtk.ListHeader) obj;
 				var header = new TodayHeader ();
 				header.select_group_btn.clicked.connect (() => {
-					Haptics.tick ();
 					for (uint pos = list_header.start; pos < list_header.end; pos++)
 						window.select_today_item (pos, true);
 				});

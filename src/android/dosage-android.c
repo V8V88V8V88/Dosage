@@ -129,20 +129,27 @@ dosage_android_request_permissions (void)
 }
 
 gboolean
-dosage_android_schedule (gint id, gint64 trigger_at_ms, const char *title, const char *body)
+dosage_android_schedule (gint id, gint64 trigger_at_ms, const char *title, const char *body,
+                         gint64 date_key, const char *confirm_label, const char *skip_label)
 {
   JNIEnv *env = get_env ();
   if (env == NULL || alarms_class == NULL)
     return FALSE;
   jmethodID m = (*env)->GetStaticMethodID (env, alarms_class, "schedule",
-                                           "(Landroid/content/Context;IJLjava/lang/String;Ljava/lang/String;)Z");
+                                           "(Landroid/content/Context;IJLjava/lang/String;Ljava/lang/String;"
+                                           "JLjava/lang/String;Ljava/lang/String;)Z");
   jstring jtitle = (*env)->NewStringUTF (env, title);
   jstring jbody = (*env)->NewStringUTF (env, body);
+  jstring jconfirm = (*env)->NewStringUTF (env, confirm_label);
+  jstring jskip = (*env)->NewStringUTF (env, skip_label);
   jboolean exact = (*env)->CallStaticBooleanMethod (env, alarms_class, m, app_context,
                                                     (jint) id, (jlong) trigger_at_ms,
-                                                    jtitle, jbody);
+                                                    jtitle, jbody, (jlong) date_key,
+                                                    jconfirm, jskip);
   (*env)->DeleteLocalRef (env, jtitle);
   (*env)->DeleteLocalRef (env, jbody);
+  (*env)->DeleteLocalRef (env, jconfirm);
+  (*env)->DeleteLocalRef (env, jskip);
   if (check_exception (env, "schedule"))
     return FALSE;
   return exact;
@@ -315,4 +322,31 @@ dosage_android_get_locale (void)
   (*env)->ReleaseStringUTFChars (env, lang, ls);
   if (country) (*env)->ReleaseStringUTFChars (env, country, cs);
   return ret;
+}
+
+void
+dosage_android_notify_now (gint id, const char *title, const char *body)
+{
+  JNIEnv *env = get_env ();
+  if (env == NULL || alarms_class == NULL)
+    return;
+  jmethodID m = (*env)->GetStaticMethodID (env, alarms_class, "notifyNow",
+                                           "(Landroid/content/Context;ILjava/lang/String;Ljava/lang/String;)V");
+  jstring jtitle = (*env)->NewStringUTF (env, title);
+  jstring jbody = (*env)->NewStringUTF (env, body);
+  (*env)->CallStaticVoidMethod (env, alarms_class, m, app_context, (jint) id, jtitle, jbody);
+  (*env)->DeleteLocalRef (env, jtitle);
+  (*env)->DeleteLocalRef (env, jbody);
+  check_exception (env, "notifyNow");
+}
+
+void
+dosage_android_withdraw (gint id)
+{
+  JNIEnv *env = get_env ();
+  if (env == NULL || alarms_class == NULL)
+    return;
+  jmethodID m = (*env)->GetStaticMethodID (env, alarms_class, "withdraw", "(Landroid/content/Context;I)V");
+  (*env)->CallStaticVoidMethod (env, alarms_class, m, app_context, (jint) id);
+  check_exception (env, "withdraw");
 }

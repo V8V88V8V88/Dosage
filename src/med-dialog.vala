@@ -337,7 +337,6 @@ namespace Dosage {
 		[GtkCallback (name = "_save")]
 		private void on_save () {
 			if (!is_valid_input ()) return;
-			Haptics.click ();
 			var t = build_treatment ();
 			var store = Store.get_default ();
 

@@ -81,6 +81,11 @@ namespace Dosage {
 		private void load () {
 			store.load ();
 			if (add_missed_items () | clear_old_history_entries ()) store.save_history ();
+#if ANDROID
+			// Confirm/Skip pressed on notifications while the app wasn't running
+			if (apply_notification_actions ()) store.save_history ();
+			watch_notification_actions ();
+#endif
 			withdraw_past_notifications ();
 			update_cycle_and_last_up (false);
 			store.save_treatments ();
@@ -294,7 +299,15 @@ namespace Dosage {
 				}
 			}
 
-#if !ANDROID
+#if ANDROID
+			const int LOW_STOCK_ID = 900000;
+			if (!notify || !settings.get_boolean ("low-stock-notif")) {
+				DosageAndroid.withdraw (LOW_STOCK_ID);
+			} else if (!is_notif_action && !low_stock_notified_today ()) {
+				// TRANSLATORS: Notification text for when the inventory is low
+				DosageAndroid.notify_now (LOW_STOCK_ID, _("Reminder"), _("You have treatments low in stock"));
+			}
+#else
 			if (!settings.get_boolean ("low-stock-notif")) return;
 			application.withdraw_notification ("low-stock");
 			if (!is_notif_action && notify) {
@@ -391,7 +404,6 @@ namespace Dosage {
 		}
 
 		public void select_today_item (uint position, bool group_check) {
-			if (!group_check) Haptics.tick ();
 			if (group_check || !today_select.is_selected (position))
 				today_select.select_item (position, false);
 			else
@@ -439,7 +451,6 @@ namespace Dosage {
 		[GtkCallback (name = "addTodayOrOneTimeToHist")]
 		private void on_add_today_or_one_time (Gtk.Button btn) {
 			int taken = int.parse (btn.name); // 1 confirm, 0 skip
-			Haptics.click ();
 			var now = Time.now ();
 
 			if (today_items.length > 0) {
@@ -635,6 +646,86 @@ namespace Dosage {
 		}
 #endif
 
+#if ANDROID
+		private GLib.FileMonitor? actions_monitor;
+
+		// written by android/java/.../ActionReceiver.java
+		private GLib.File actions_file () {
+			string files = GLib.Path.build_filename (GLib.Path.get_dirname (GLib.Environment.get_user_cache_dir ()), "files");
+			return GLib.File.new_for_path (GLib.Path.build_filename (files, "notification-actions"));
+		}
+
+		private void watch_notification_actions () {
+			try {
+				actions_monitor = actions_file ().monitor_file (GLib.FileMonitorFlags.NONE);
+				actions_monitor.changed.connect ((f, other, ev) => {
+					if (ev != GLib.FileMonitorEvent.CHANGES_DONE_HINT && ev != GLib.FileMonitorEvent.CREATED) return;
+					if (!apply_notification_actions ()) return;
+					update_everything (true, true, false);
+					history_changed ();
+					schedule_notifications (null);
+				});
+			} catch (Error e) {
+				warning ("watch notification actions: %s", e.message);
+			}
+		}
+
+		// Apply "dateKey,taken" lines: same as the desktop notification actions.
+		private bool apply_notification_actions () {
+			var file = actions_file ();
+			uint8[] data;
+			try {
+				file.load_contents (null, out data, null);
+				file.delete ();
+			} catch (Error e) {
+				return false;
+			}
+			bool applied = false;
+			foreach (var line in ((string) data).split ("\n")) {
+				var parts = line.strip ().split (",");
+				if (parts.length != 2) continue;
+				int64 key = int64.parse (parts[0]);
+				int taken = int.parse (parts[1]);
+				var due = Time.from_ms (key);
+				bool is_today = Time.day_ms (key) == Time.today_ms ();
+
+				var g = new Reminders.Group () { date_key = key, hour = due.get_hour (), minute = due.get_minute () };
+				for (uint i = 0; i < store.treatments.get_n_items (); i++) {
+					var t = (Treatment) store.treatments.get_item (i);
+					if (t.is_when_needed) continue;
+					foreach (var td in t.dosage) {
+						if (td.hour != g.hour || td.minute != g.minute) continue;
+						if (is_today && (td.last_taken != null || !t.is_med_day (due))) continue;
+						var it = new TodayItem (t, td.hour, td.minute, td.dose, false);
+						it.date_today_ls = key;
+						g.items.add (it);
+					}
+				}
+				if (g.items.length == 0) continue;
+				add_notif_items_to_history (g, taken);
+				applied = true;
+				message ("applied notification action %d for %s", taken, due.format ("%F %R"));
+			}
+			return applied;
+		}
+
+		private bool low_stock_notified_today () {
+			var f = GLib.File.new_for_path (GLib.Path.build_filename (GLib.Environment.get_user_cache_dir (), "low-stock-notified"));
+			string today = Time.now ().format ("%F");
+			try {
+				uint8[] data;
+				f.load_contents (null, out data, null);
+				if ((string) data == today) return true;
+			} catch (Error e) {
+			}
+			try {
+				f.replace_contents (today.data, null, false, GLib.FileCreateFlags.NONE, null);
+			} catch (Error e) {
+			}
+			return false;
+		}
+#endif
+
 		private void withdraw_notification_at (int hour, int minute) {
 #if !ANDROID
 			int64 key = Time.to_ms (Time.at_time (Time.now (), hour, minute));
@@ -709,7 +800,6 @@ namespace Dosage {
 			dialog.set_response_appearance ("delete", Adw.ResponseAppearance.DESTRUCTIVE);
 			dialog.response.connect ((response) => {
 				if (response != "delete") return;
-				Haptics.click ();
 				uint pos;
 				if (store.treatments.find (t, out pos)) store.treatments.remove (pos);
 				med_dialog?.force_close ();
@@ -838,7 +928,6 @@ namespace Dosage {
 				buttonSearch.visible = page == "history-page";
 				searchBar.visible = page == "history-page";
 				buttonTreatmentsSorter.visible = page == "treatments-page";
-				Haptics.tick ();
 			});
 		}
 
@@ -946,7 +1035,6 @@ namespace Dosage {
 		// Removing today's entries makes those doses due again and restores stock.
 		[GtkCallback (name = "removeHistItems")]
 		private void on_remove_hist_items () {
-			Haptics.click ();
 			int64 today = Time.today_ms ();
 			foreach (var e in hist_items_to_rm) {
 				if (Time.day_ms (e.taken_at) == today) {

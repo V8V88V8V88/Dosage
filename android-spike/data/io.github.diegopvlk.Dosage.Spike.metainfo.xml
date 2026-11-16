@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application" xmlns="https://specifications.freedesktop.org/metainfo/1.0">
+	<id>io.github.diegopvlk.Dosage.Spike</id>
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>GPL-3.0-only</project_license>
+	<name>Dosage Spike</name>
+	<summary>Android toolchain spike for Dosage</summary>
+	<description>
+		<p>Minimal Vala + libadwaita app used to test building Dosage for Android with Pixiewood.</p>
+	</description>
+	<developer id="io.github.diegopvlk">
+		<name>Diego Povliuk</name>
+	</developer>
+	<launchable type="desktop-id">io.github.diegopvlk.Dosage.Spike.desktop</launchable>
+	<releases>
+		<release version="0.1.0" date="2026-11-16"/>
+	</releases>
+</component>

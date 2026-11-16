@@ -22,3 +22,5 @@ gboolean dosage_android_is_24_hour         (void);
 gint     dosage_android_first_day_of_week  (void);
 /* Haptic feedback: 0 = tick (selection), 1 = click (action), 2 = heavy click. */
 void     dosage_android_haptic             (gint kind);
+/* Device language as a POSIX locale (e.g. "pt_BR"), newly allocated. */
+char    *dosage_android_get_locale         (void);

@@ -81,6 +81,13 @@ public final class DosageAlarms {
 		v.vibrate(VibrationEffect.createPredefined(effect));
 	}
 
+	/** Device language as a POSIX locale for gettext, e.g. "pt_BR". */
+	public static String posixLocale() {
+		java.util.Locale l = java.util.Locale.getDefault();
+		String country = l.getCountry();
+		return country.isEmpty() ? l.getLanguage() : l.getLanguage() + "_" + country;
+	}
+
 	/** True if the app is exempt from battery optimisation ("Unrestricted"). */
 	public static boolean isBatteryUnrestricted(Context context) {
 		PowerManager pm = context.getSystemService(PowerManager.class);

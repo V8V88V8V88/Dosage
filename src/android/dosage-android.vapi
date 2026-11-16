@@ -13,4 +13,5 @@ namespace DosageAndroid {
 	public bool is_24_hour ();
 	public int first_day_of_week ();
 	public void haptic (int kind);
+	public string? get_locale ();
 }

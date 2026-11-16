@@ -1,7 +1,7 @@
 using Gtk 4.0;
 using Adw 1;
 
-template $PrefsDialog: Adw.Dialog {
+template $DosagePrefsDialog: Adw.Dialog {
 	name: "preferences";
 	content-width: 472;
 	title: _("Preferences");
@@ -15,8 +15,6 @@ template $PrefsDialog: Adw.Dialog {
 				Adw.PreferencesGroup {
 					Adw.SwitchRow autoStart {
 						title: _("Auto-Start at Login");
-						active: bind $_setSwitchStartStateFromKey("autostart", autoStart) as <bool>;
-						notify::active => $_handleAutostart();
 
 						[prefix]
 						Image {
@@ -27,8 +25,6 @@ template $PrefsDialog: Adw.Dialog {
 					Adw.SwitchRow autoClear {
 						title: _("Auto-Clear History");
 						subtitle: _("Keeps a maximum of 30 days");
-						active: bind $_setSwitchStartStateFromKey("clear-old-hist", autoClear) as <bool>;
-						notify::active => $_setSwitchSettingsKey();
 
 						[prefix]
 						Image {
@@ -39,8 +35,6 @@ template $PrefsDialog: Adw.Dialog {
 					Adw.SwitchRow lowNotif {
 						title: _("Low Stock Notification");
 						subtitle: _("Send reminders when treatments are low in stock");
-						active: bind $_setSwitchStartStateFromKey("low-stock-notif", lowNotif) as <bool>;
-						notify::active => $_setSwitchSettingsKey();
 
 						[prefix]
 						Image {
@@ -50,8 +44,6 @@ template $PrefsDialog: Adw.Dialog {
 
 					Adw.SwitchRow notifSound {
 						title: _("Notification Sound");
-						active: bind $_setSwitchStartStateFromKey("sound", notifSound) as <bool>;
-						notify::active => $_setSwitchSettingsKey();
 
 						[prefix]
 						Image {
@@ -71,8 +63,6 @@ template $PrefsDialog: Adw.Dialog {
 
 						Adw.SwitchRow confirmBtn {
 							title: _("Confirm");
-							active: bind $_setSwitchStartStateFromKey("confirm-button", confirmBtn) as <bool>;
-							notify::active => $_setSwitchSettingsKey();
 
 							[prefix]
 							Image {
@@ -82,8 +72,6 @@ template $PrefsDialog: Adw.Dialog {
 
 						Adw.SwitchRow skipBtn {
 							title: _("Skip");
-							active: bind $_setSwitchStartStateFromKey("skip-button", skipBtn) as <bool>;
-							notify::active => $_setSwitchSettingsKey();
 
 							[prefix]
 							Image {

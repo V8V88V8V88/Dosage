@@ -468,7 +468,10 @@ namespace Dosage {
 		}
 
 		public void present_one_time_dialog () {
-			coming_soon (_("One-Time Entry"));
+			if (delay_dialog) return;
+			delay_dialog = true;
+			Timeout.add (500, () => { delay_dialog = false; return Source.REMOVE; });
+			new OneTimeDialog (this).present (this);
 		}
 
 		private void update_treat_inv_and_last_tk (TodayItem item, int taken) {
@@ -639,17 +642,6 @@ namespace Dosage {
 #endif
 		}
 
-		// --- not ported yet (phases 2-4) -----------------------------------------
-
-		private void coming_soon (string what) {
-			if (delay_dialog) return;
-			delay_dialog = true;
-			Timeout.add (500, () => { delay_dialog = false; return Source.REMOVE; });
-			var dialog = new Adw.AlertDialog (what, "Not available yet in this preview of the Vala port.");
-			dialog.add_response ("close", _("Close"));
-			dialog.present (this);
-		}
-
 		// --- Treatments page ---------------------------------------------------------
 
 		private void setup_treatments_list () {
@@ -701,7 +693,10 @@ namespace Dosage {
 		}
 
 		public void present_refill_dialog (Treatment t) {
-			coming_soon (_("Refill"));
+			if (delay_dialog) return;
+			delay_dialog = true;
+			Timeout.add (500, () => { delay_dialog = false; return Source.REMOVE; });
+			new RefillDialog (this, t).present (this);
 		}
 
 		public void confirm_delete (Treatment t, uint position, Adw.Dialog? med_dialog) {

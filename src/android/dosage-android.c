@@ -292,3 +292,27 @@ dosage_android_haptic (gint kind)
   (*env)->CallStaticVoidMethod (env, alarms_class, m, app_context, (jint) kind);
   check_exception (env, "haptic");
 }
+
+char *
+dosage_android_get_locale (void)
+{
+  /* java.util.Locale only needs framework classes, so this works before init(). */
+  JNIEnv *env = get_env ();
+  if (env == NULL)
+    return NULL;
+  jclass loc = (*env)->FindClass (env, "java/util/Locale");
+  jmethodID get_default = (*env)->GetStaticMethodID (env, loc, "getDefault", "()Ljava/util/Locale;");
+  jmethodID get_lang = (*env)->GetMethodID (env, loc, "getLanguage", "()Ljava/lang/String;");
+  jmethodID get_country = (*env)->GetMethodID (env, loc, "getCountry", "()Ljava/lang/String;");
+  jobject l = (*env)->CallStaticObjectMethod (env, loc, get_default);
+  jstring lang = (*env)->CallObjectMethod (env, l, get_lang);
+  jstring country = (*env)->CallObjectMethod (env, l, get_country);
+  if (check_exception (env, "Locale") || lang == NULL)
+    return NULL;
+  const char *ls = (*env)->GetStringUTFChars (env, lang, NULL);
+  const char *cs = country ? (*env)->GetStringUTFChars (env, country, NULL) : "";
+  char *ret = (cs[0] != 0) ? g_strdup_printf ("%s_%s", ls, cs) : g_strdup (ls);
+  (*env)->ReleaseStringUTFChars (env, lang, ls);
+  if (country) (*env)->ReleaseStringUTFChars (env, country, cs);
+  return ret;
+}

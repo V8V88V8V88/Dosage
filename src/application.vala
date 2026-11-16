@@ -40,7 +40,7 @@ namespace Dosage {
 			add_action (sorter);
 
 			add_simple ("preferences", { "<primary>comma" }, () => {
-				// ported in phase 4
+				if (window != null) new PrefsDialog (window).present (window);
 			});
 			add_simple ("about", {}, show_about);
 			add_simple ("new-one-time", { "<primary>t" }, () => {
@@ -162,8 +162,28 @@ public int main (string[] args) {
 	}
 	install_bundled_fonts ();
 #endif
+#if ANDROID
+	// Android sets no LANG; take the device language for gettext. Translations are
+	// bundled under <app>/files/share/locale (XDG_DATA_DIRS), not LOCALEDIR.
+	var lang = DosageAndroid.get_locale ();
+	if (lang != null) {
+		GLib.Environment.set_variable ("LANGUAGE", lang, true);
+		GLib.Environment.set_variable ("LANG", lang + ".UTF-8", true);
+	}
+	string localedir = Config.LOCALEDIR;
+	foreach (var dir in GLib.Environment.get_system_data_dirs ()) {
+		var candidate = GLib.Path.build_filename (dir, "locale");
+		if (GLib.FileUtils.test (candidate, GLib.FileTest.IS_DIR)) {
+			localedir = candidate;
+			break;
+		}
+	}
+	GLib.Intl.setlocale (GLib.LocaleCategory.ALL, "");
+	GLib.Intl.bindtextdomain (Config.GETTEXT_PACKAGE, localedir);
+#else
 	GLib.Intl.setlocale (GLib.LocaleCategory.ALL, "");
 	GLib.Intl.bindtextdomain (Config.GETTEXT_PACKAGE, Config.LOCALEDIR);
+#endif
 	GLib.Intl.bind_textdomain_codeset (Config.GETTEXT_PACKAGE, "UTF-8");
 	GLib.Intl.textdomain (Config.GETTEXT_PACKAGE);
 	return new Dosage.Application ().run (args);

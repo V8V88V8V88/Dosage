@@ -7,6 +7,8 @@ config_h = configure_file(output: 'config.h', configuration: conf)
 
 sources = files(
 	'application.vala',
+	'dialogs.vala',
+	'export.vala',
 	'edit-hist-dialog.vala',
 	'history-factory.vala',
 	'med-dialog.vala',

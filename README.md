@@ -1,3 +1,10 @@
+> [!NOTE]
+> **Unofficial experimental port.** This branch is a rewrite of [Dosage](https://github.com/diegopvlk/Dosage)
+> by Diego Povliuk from GJS to **Vala**, so the same code builds for the desktop and for **Android**
+> (GTK's Android backend + [Pixiewood](https://github.com/sp1ritCS/gtk-android-builder)). It keeps
+> the original UI, translations and data format. Not affiliated with or endorsed by the upstream project;
+> please report issues with this port here, not upstream. Android build: see [android/README.md](android/README.md).
+
 <img style="vertical-align: middle;" src="data/icons/hicolor/scalable/apps/io.github.diegopvlk.Dosage.svg" width="112" height="112" align="left">
 
 ### Dosage

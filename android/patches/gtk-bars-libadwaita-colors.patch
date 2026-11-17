@@ -1,0 +1,17 @@
+diff --git a/gdk/android/gdkandroidtoplevel.c b/gdk/android/gdkandroidtoplevel.c
+index f92c536..c900e8a 100644
+--- a/gdk/android/gdkandroidtoplevel.c
++++ b/gdk/android/gdkandroidtoplevel.c
+@@ -630,8 +630,10 @@ gdk_android_toplevel_init (GdkAndroidToplevel *self)
+   self->activity_requests = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)gdk_android_toplevel_activity_request_free);
+ }
+ 
+-static const GdkRGBA light_bg = { .red = 0xf6 / 255.f, .green = 0xf5 / 255.f, .blue = 0xf4 / 255.f, .alpha = 1.f };
+-static const GdkRGBA dark_bg = { .red = 0x35 / 255.f, .green = 0x35 / 255.f, .blue = 0x35 / 255.f, .alpha = 1.f };
++/* libadwaita's window_bg_color, so the status/navigation bar areas continue the
++ * app's flat header and bottom bars instead of showing an old-Adwaita grey strip. */
++static const GdkRGBA light_bg = { .red = 0xfa / 255.f, .green = 0xfa / 255.f, .blue = 0xfb / 255.f, .alpha = 1.f };
++static const GdkRGBA dark_bg = { .red = 0x22 / 255.f, .green = 0x22 / 255.f, .blue = 0x26 / 255.f, .alpha = 1.f };
+ const GdkRGBA *
+ gdk_android_toplevel_get_bars_color (GdkAndroidToplevel *self)
+ {

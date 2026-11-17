@@ -125,7 +125,30 @@ namespace Dosage.Reminders {
 		return current <= active;
 	}
 
+	// Same id as AlarmReceiver.java: one notification per dose group.
+	private int notification_id (int64 date_key) {
+		return (int) (date_key / 60000 % 1000000);
+	}
+
+	// Remove reminders still in the shade for doses that are no longer pending:
+	// confirmed or skipped in the app, or from yesterday (now in History as missed).
+	private void withdraw_done (GenericArray<Group> today_groups, GLib.ListStore treatments) {
+		var pending = new HashTable<int64?, bool> (int64_hash, int64_equal);
+		foreach (var g in today_groups) pending.insert (g.date_key, true);
+		var today = Time.now ();
+		for (uint i = 0; i < treatments.get_n_items (); i++) {
+			var t = (Treatment) treatments.get_item (i);
+			foreach (var td in t.dosage) {
+				for (int offset = -1; offset <= 0; offset++) {
+					int64 key = Time.to_ms (Time.at_time (today.add_days (offset), td.hour, td.minute));
+					if (!pending.contains (key)) DosageAndroid.withdraw (notification_id (key));
+				}
+			}
+		}
+	}
+
 	public void schedule_android (GenericArray<Group> today_groups, GLib.ListStore treatments) {
+		withdraw_done (today_groups, treatments);
 		cancel_previous ();
 		var ids = new int[0];
 		int64 now = Time.now_ms ();

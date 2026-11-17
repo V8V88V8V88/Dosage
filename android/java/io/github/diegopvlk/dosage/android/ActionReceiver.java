@@ -19,6 +19,7 @@ public final class ActionReceiver extends BroadcastReceiver {
 		int taken = intent.getIntExtra(DosageAlarms.EXTRA_TAKEN, 1);
 		Log.i(DosageAlarms.TAG, "action " + taken + " for " + dateKey);
 		DosageAlarms.recordAction(context.getApplicationContext(), dateKey, taken);
+		DosageAlarms.cancelGroup(context.getApplicationContext(), dateKey);
 		context.getSystemService(NotificationManager.class).cancel(notifId);
 	}
 }

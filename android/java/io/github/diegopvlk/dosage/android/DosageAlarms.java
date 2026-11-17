@@ -232,6 +232,25 @@ public final class DosageAlarms {
 		prefs(app).edit().remove(String.valueOf(id)).apply();
 	}
 
+	/**
+	 * Cancel the remaining (recurring) alarms of one dose group. Used when Confirm/Skip
+	 * is pressed: the GTK window, which normally reschedules, may not be running.
+	 */
+	static void cancelGroup(Context app, long dateKey) {
+		int count = 0;
+		for (java.util.Map.Entry<String, ?> e : prefs(app).getAll().entrySet()) {
+			try {
+				String[] f = String.valueOf(e.getValue()).split("\u001f", -1);
+				if (Long.parseLong(f[3]) != dateKey) continue;
+				cancel(app, Integer.parseInt(e.getKey()));
+				count++;
+			} catch (Exception ex) {
+				Log.w(TAG, "bad alarm record " + e.getKey(), ex);
+			}
+		}
+		Log.i(TAG, "cancelled " + count + " alarms for " + dateKey);
+	}
+
 	/** Post a notification right away (e.g. low stock). */
 	public static void notifyNow(Context context, int id, String title, String body) {
 		Context app = context.getApplicationContext();

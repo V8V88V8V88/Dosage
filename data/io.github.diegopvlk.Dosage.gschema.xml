@@ -20,6 +20,10 @@
     <key name="confirm-button" type="b">
       <default>true</default>
     </key>
+    <key name="android-asked-permissions" type="b">
+      <default>false</default>
+      <summary>Android only: reminder permissions were requested on first launch</summary>
+    </key>
     <key name="skip-button" type="b">
       <default>true</default>
     </key>

@@ -75,7 +75,51 @@ namespace Dosage {
 			});
 			clock_tick ();
 			map.connect (() => debug ("renderer: %s", get_renderer ()?.get_type ().name () ?? "none"));
+#if ANDROID
+			setup_permissions_banner ();
+#endif
 		}
+
+#if ANDROID
+		// Reminders are posted by Android (see reminders.vala); without the notification
+		// permission they're silently dropped, so ask for it and keep saying so until given.
+		private Adw.Banner permissions_banner;
+		private bool had_exact;
+
+		private void setup_permissions_banner () {
+			permissions_banner = new Adw.Banner (_("Reminders are turned off")) {
+				button_label = _("Allow")
+			};
+			permissions_banner.button_clicked.connect (() => DosageAndroid.request_permissions ());
+			((Adw.ToolbarView) content).add_top_bar (permissions_banner);
+			had_exact = DosageAndroid.can_schedule_exact ();
+			update_permissions_banner ();
+
+			// returning from the permission dialog or the settings page
+			notify["is-active"].connect (() => {
+				if (!is_active) return;
+				update_permissions_banner ();
+				bool exact = DosageAndroid.can_schedule_exact ();
+				if (exact != had_exact && store.treatments.get_n_items () > 0) {
+					had_exact = exact;
+					schedule_notifications (null); // re-register as exact alarms
+				}
+			});
+
+			// first launch: ask right away, once the window is on screen
+			if (!DosageAndroid.can_notify () && !settings.get_boolean ("android-asked-permissions")) {
+				Timeout.add (600, () => {
+					settings.set_boolean ("android-asked-permissions", true);
+					DosageAndroid.request_permissions ();
+					return Source.REMOVE;
+				});
+			}
+		}
+
+		private void update_permissions_banner () {
+			permissions_banner.revealed = !DosageAndroid.can_notify () || !DosageAndroid.can_schedule_exact ();
+		}
+#endif
 
 		// --- startup -------------------------------------------------------------
 

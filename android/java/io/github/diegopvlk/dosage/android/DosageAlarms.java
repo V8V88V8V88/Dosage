@@ -98,22 +98,50 @@ public final class DosageAlarms {
 		return context.getSystemService(AlarmManager.class).canScheduleExactAlarms();
 	}
 
-	/** Ask for POST_NOTIFICATIONS and, if needed, open the exact-alarm settings page. */
+	/**
+	 * Ask for whatever reminders still need, one step per call (a system dialog and a
+	 * settings page at once would cover each other):
+	 *  1. notifications: the runtime dialog, or the app's notification settings once
+	 *     Android won't show the dialog any more (denied twice, or turned off there);
+	 *  2. exact alarms, normally already granted through USE_EXACT_ALARM.
+	 */
 	public static void requestPermissions(Context context) {
 		final Context app = context.getApplicationContext();
 		new Handler(Looper.getMainLooper()).post(() -> {
 			Activity activity = currentActivity;
-			if (Build.VERSION.SDK_INT >= 33 && !canNotify(app) && activity != null) {
-				activity.requestPermissions(
-						new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1001);
+			Log.i(TAG, "requestPermissions notify=" + canNotify(app) + " exact="
+					+ canScheduleExact(app) + " activity=" + (activity != null));
+			if (!canNotify(app)) {
+				boolean granted = Build.VERSION.SDK_INT < 33 || app.checkSelfPermission(
+						Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+				SharedPreferences state = app.getSharedPreferences("dosage-state", Context.MODE_PRIVATE);
+				boolean asked = state.getBoolean("asked-notifications", false);
+				if (!granted && activity != null && (!asked || activity
+						.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS))) {
+					state.edit().putBoolean("asked-notifications", true).apply();
+					activity.requestPermissions(
+							new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1001);
+				} else {
+					Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+							.putExtra(Settings.EXTRA_APP_PACKAGE, app.getPackageName());
+					start(app, activity, intent);
+				}
+				return;
 			}
 			if (!canScheduleExact(app)) {
-				Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-						Uri.parse("package:" + app.getPackageName()));
-				intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-				(activity != null ? activity : app).startActivity(intent);
+				start(app, activity, new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+						Uri.parse("package:" + app.getPackageName())));
 			}
 		});
+	}
+
+	private static void start(Context app, Activity activity, Intent intent) {
+		if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+		try {
+			(activity != null ? activity : app).startActivity(intent);
+		} catch (Exception e) {
+			Log.w(TAG, "can't open " + intent.getAction(), e);
+		}
 	}
 
 	/** True if the app is exempt from battery optimisation ("Unrestricted"). */

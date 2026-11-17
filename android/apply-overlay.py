@@ -5,6 +5,7 @@ Pixiewood has no hook for extra Java sources or manifest entries, so run this af
 every `pixiewood generate` (and before `pixiewood build`). Safe to run repeatedly.
 """
 import os
+import re
 import sys
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -28,13 +29,19 @@ manifest = os.path.join(app, "AndroidManifest.xml")
 with open(manifest) as f:
     xml = f.read()
 
+# Exact alarms: USE_EXACT_ALARM (API 33+) is granted at install for reminder apps;
+# SCHEDULE_EXACT_ALARM covers API 31-32, where it is granted by default. Without
+# either, Android silently falls back to inexact alarms that fire many minutes late.
 permissions = [
     "android.permission.POST_NOTIFICATIONS",
-    "android.permission.SCHEDULE_EXACT_ALARM",
+    'android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32',
+    "android.permission.USE_EXACT_ALARM",
     "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
     "android.permission.VIBRATE",
     "android.permission.RECEIVE_BOOT_COMPLETED",
 ]
+# drop an older SCHEDULE_EXACT_ALARM entry without maxSdkVersion (re-run on an old manifest)
+xml = re.sub(r'\s*<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>', "", xml)
 for p in permissions:
     tag = '<uses-permission android:name="%s"/>' % p
     if tag not in xml:
